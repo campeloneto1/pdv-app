@@ -59,7 +59,7 @@ api.interceptors.response.use(
 );
 
 // Helper para extrair dados do response
-const ARRAY_WRAPPER_KEYS = ['data', 'branches', 'categories', 'products', 'sales', 'items'];
+const ARRAY_WRAPPER_KEYS = ['data', 'branches', 'categories', 'products', 'sales', 'items', 'payment_methods'];
 
 export const extractArrayData = (response: any): any[] => {
   const data = response?.data;

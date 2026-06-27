@@ -16,10 +16,12 @@ interface Props {
 }
 
 export default function CartScreen({ navigation }: Props) {
-  const { items, updateQuantity, removeItem, updateNotes, clearCart } = useCartStore();
+  const { items, updateQuantity, removeItem, updateNotes, updateDiscount, clearCart } =
+    useCartStore();
 
   const total = items.reduce(
-    (sum, item) => sum + item.unit_price * item.quantity,
+    (sum, item) =>
+      sum + Math.max(0, item.unit_price * item.quantity - (item.discount || 0)),
     0
   );
 
@@ -93,7 +95,10 @@ export default function CartScreen({ navigation }: Props) {
 
         <View style={styles.itemTotal}>
           <Text style={styles.itemTotalText}>
-            R$ {(item.unit_price * item.quantity).toFixed(2).replace('.', ',')}
+            R${' '}
+            {Math.max(0, item.unit_price * item.quantity - (item.discount || 0))
+              .toFixed(2)
+              .replace('.', ',')}
           </Text>
           <TouchableOpacity
             onPress={() => handleRemove(item.product_id, item.product_name)}
@@ -101,6 +106,20 @@ export default function CartScreen({ navigation }: Props) {
             <Text style={styles.removeText}>🗑️</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      <View style={styles.discountRow}>
+        <Text style={styles.discountLabel}>Desconto (R$)</Text>
+        <TextInput
+          style={styles.discountInput}
+          placeholder="0,00"
+          placeholderTextColor="#9ca3af"
+          keyboardType="decimal-pad"
+          value={item.discount ? item.discount.toFixed(2).replace('.', ',') : ''}
+          onChangeText={(text) =>
+            updateDiscount(item.product_id, parseFloat(text.replace(',', '.')) || 0)
+          }
+        />
       </View>
 
       <TextInput
@@ -221,7 +240,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   notesInput: {
-    marginTop: 12,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: 8,
@@ -229,6 +248,28 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 14,
     color: '#111827',
+  },
+  discountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  discountLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  discountInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: '#111827',
+    minWidth: 90,
+    textAlign: 'right',
   },
   itemInfo: {
     flex: 1,

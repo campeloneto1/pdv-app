@@ -16,6 +16,7 @@ interface CartState {
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
   updateNotes: (productId: number, notes: string) => void;
+  updateDiscount: (productId: number, discount: number) => void;
   setCustomerName: (name: string) => void;
   clearCart: () => void;
 }
@@ -28,7 +29,8 @@ export const useCartStore = create<CartState>()(
 
       get total() {
         return get().items.reduce(
-          (sum, item) => sum + item.unit_price * item.quantity,
+          (sum, item) =>
+            sum + Math.max(0, item.unit_price * item.quantity - (item.discount || 0)),
           0
         );
       },
@@ -80,6 +82,17 @@ export const useCartStore = create<CartState>()(
         set({
           items: items.map((item) =>
             item.product_id === productId ? { ...item, notes } : item
+          ),
+        });
+      },
+
+      updateDiscount: (productId: number, discount: number) => {
+        const { items } = get();
+        set({
+          items: items.map((item) =>
+            item.product_id === productId
+              ? { ...item, discount: Math.max(0, discount) }
+              : item
           ),
         });
       },

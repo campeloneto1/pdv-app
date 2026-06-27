@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,123 +10,256 @@ import {
   ScrollView,
 } from 'react-native';
 import { useCartStore } from '../store/cartStore';
-import { useAuthStore } from '../store/authStore';
 import { useSessionStore } from '../store/sessionStore';
 import { StonePayment } from '../services/payment/stone';
 import { ThermalPrinter } from '../services/printer/thermalPrinter';
-import api from '../api/api';
+import api, { extractArrayData } from '../api/api';
+import { PaymentMethod } from '../types';
+import { enqueueSale } from '../services/offline/offlineQueue';
 
-type PaymentType = 'credit' | 'debit' | 'pix' | 'cash';
+type PaymentKind = 'credit' | 'debit' | 'pix' | 'cash';
+
+interface PaymentEntry {
+  key: string;
+  kind: PaymentKind;
+  methodId: number;
+  methodName: string;
+  amountText: string;
+  installments: number;
+}
 
 interface Props {
   navigation: any;
 }
 
+const QUICK_METHODS: { kind: PaymentKind; label: string; icon: string; color: string }[] = [
+  { kind: 'credit', label: 'Crédito', icon: '💳', color: '#8b5cf6' },
+  { kind: 'debit', label: 'Débito', icon: '💳', color: '#06b6d4' },
+  { kind: 'pix', label: 'PIX', icon: '📱', color: '#22c55e' },
+  { kind: 'cash', label: 'Dinheiro', icon: '💵', color: '#f59e0b' },
+];
+
+function normalize(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function inferKind(name: string): PaymentKind | null {
+  const n = normalize(name);
+  if (n.includes('dinheiro') || n.includes('cash')) return 'cash';
+  if (n.includes('credito') || n.includes('credit')) return 'credit';
+  if (n.includes('debito') || n.includes('debit')) return 'debit';
+  if (n.includes('pix')) return 'pix';
+  return null;
+}
+
 export default function PaymentScreen({ navigation }: Props) {
-  const [selectedMethod, setSelectedMethod] = useState<PaymentType | null>(null);
+  const [loadingMethods, setLoadingMethods] = useState(true);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [processing, setProcessing] = useState(false);
-  const [installments, setInstallments] = useState(1);
-  const [cashReceived, setCashReceived] = useState('');
   const [discount, setDiscount] = useState('');
 
   const { items, clearCart } = useCartStore();
-  const { selectedBranch } = useAuthStore();
-  const { cashRegister } = useSessionStore();
+  const { selectedBranchId } = useSessionStore();
+
+  useEffect(() => {
+    loadPaymentMethods();
+  }, []);
+
+  const loadPaymentMethods = async () => {
+    try {
+      const response = await api.get('/payment-methods');
+      const data = extractArrayData(response).filter((m: PaymentMethod) => m.active);
+      setMethods(data);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as formas de pagamento');
+    } finally {
+      setLoadingMethods(false);
+    }
+  };
+
+  const methodByKind = useMemo(() => {
+    const map: Partial<Record<PaymentKind, PaymentMethod>> = {};
+    methods.forEach((method) => {
+      const kind = inferKind(method.name);
+      if (kind && !map[kind]) {
+        map[kind] = method;
+      }
+    });
+    return map;
+  }, [methods]);
 
   const subtotal = items.reduce(
     (sum, item) => sum + item.unit_price * item.quantity,
     0
   );
+  const itemsDiscountTotal = items.reduce((sum, item) => sum + (item.discount || 0), 0);
   const discountValue = parseFloat(discount.replace(',', '.')) || 0;
-  const total = Math.max(0, subtotal - discountValue);
+  const total = Math.max(0, subtotal - itemsDiscountTotal - discountValue);
 
-  const cashReceivedValue = parseFloat(cashReceived.replace(',', '.')) || 0;
-  const change = cashReceivedValue - total;
+  const totalInformed = payments.reduce(
+    (sum, p) => sum + (parseFloat(p.amountText.replace(',', '.')) || 0),
+    0
+  );
+  const remaining = total - totalInformed;
 
-  const paymentMethods = [
-    { id: 'credit' as PaymentType, label: 'Crédito', icon: '💳', color: '#8b5cf6' },
-    { id: 'debit' as PaymentType, label: 'Débito', icon: '💳', color: '#06b6d4' },
-    { id: 'pix' as PaymentType, label: 'PIX', icon: '📱', color: '#22c55e' },
-    { id: 'cash' as PaymentType, label: 'Dinheiro', icon: '💵', color: '#f59e0b' },
-  ];
+  const handleAddMethod = (kind: PaymentKind) => {
+    const method = methodByKind[kind];
+    if (!method) {
+      Alert.alert(
+        'Forma indisponível',
+        'Essa forma de pagamento não está cadastrada para a empresa. Cadastre no sistema web antes de usar.'
+      );
+      return;
+    }
+
+    const amount = Math.max(0, remaining);
+    setPayments((prev) => [
+      ...prev,
+      {
+        key: `${kind}_${Date.now()}`,
+        kind,
+        methodId: method.id,
+        methodName: method.name,
+        amountText: amount > 0 ? amount.toFixed(2).replace('.', ',') : '',
+        installments: 1,
+      },
+    ]);
+  };
+
+  const handleRemovePayment = (key: string) => {
+    setPayments((prev) => prev.filter((p) => p.key !== key));
+  };
+
+  const handleChangeAmount = (key: string, text: string) => {
+    setPayments((prev) =>
+      prev.map((p) => (p.key === key ? { ...p, amountText: text } : p))
+    );
+  };
+
+  const handleChangeInstallments = (key: string, installments: number) => {
+    setPayments((prev) =>
+      prev.map((p) => (p.key === key ? { ...p, installments } : p))
+    );
+  };
+
+  const canConfirm =
+    !processing &&
+    !loadingMethods &&
+    payments.length > 0 &&
+    payments.every((p) => (parseFloat(p.amountText.replace(',', '.')) || 0) > 0) &&
+    remaining <= 0.009;
 
   const handlePayment = async () => {
-    if (!selectedMethod) {
-      Alert.alert('Atenção', 'Selecione uma forma de pagamento');
-      return;
-    }
-
-    if (selectedMethod === 'cash' && cashReceivedValue < total) {
-      Alert.alert('Atenção', 'O valor recebido é menor que o total da venda');
-      return;
-    }
+    if (!canConfirm) return;
 
     setProcessing(true);
 
+    const succeeded: { transactionId: string }[] = [];
+
     try {
-      let paymentResult;
-      const amountInCents = Math.round(total * 100);
+      for (const entry of payments) {
+        const amount = parseFloat(entry.amountText.replace(',', '.')) || 0;
+        const amountInCents = Math.round(amount * 100);
+        let result;
 
-      // Processar pagamento pela máquina
-      switch (selectedMethod) {
-        case 'credit':
-          paymentResult = await StonePayment.payCredit(amountInCents, installments);
-          break;
-        case 'debit':
-          paymentResult = await StonePayment.payDebit(amountInCents);
-          break;
-        case 'pix':
-          paymentResult = await StonePayment.payPix(amountInCents);
-          break;
-        case 'cash':
-          paymentResult = { success: true, transactionId: `CASH_${Date.now()}` };
-          break;
+        switch (entry.kind) {
+          case 'credit':
+            result = await StonePayment.payCredit(amountInCents, entry.installments);
+            break;
+          case 'debit':
+            result = await StonePayment.payDebit(amountInCents);
+            break;
+          case 'pix':
+            result = await StonePayment.payPix(amountInCents);
+            break;
+          case 'cash':
+            result = { success: true, transactionId: `CASH_${Date.now()}` };
+            break;
+        }
+
+        if (!result?.success) {
+          // Desfaz pagamentos com cartão já aprovados antes de abortar
+          for (const done of succeeded) {
+            await StonePayment.cancel(done.transactionId);
+          }
+          Alert.alert(
+            'Erro',
+            `${result?.message || 'Pagamento não aprovado'} (${entry.methodName})`
+          );
+          setProcessing(false);
+          return;
+        }
+
+        if (result.transactionId) {
+          succeeded.push({ transactionId: result.transactionId });
+        }
       }
 
-      if (!paymentResult?.success) {
-        Alert.alert('Erro', paymentResult?.message || 'Pagamento não aprovado');
-        return;
-      }
-
-      // Registrar venda no backend
       const saleData = {
-        branch_id: selectedBranch?.id,
-        cash_register_id: cashRegister?.id,
         items: items.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
           unit_price: item.unit_price,
+          discount: item.discount || 0,
           notes: item.notes || '',
         })),
-        payments: [
-          {
-            payment_method: selectedMethod,
-            amount: total,
-            transaction_id: paymentResult.transactionId,
-          },
-        ],
-        subtotal,
+        payments: payments.map((p) => ({
+          payment_method_id: p.methodId,
+          amount: parseFloat(p.amountText.replace(',', '.')) || 0,
+        })),
         discount: discountValue,
-        total,
       };
 
-      const response = await api.post('/sales', saleData);
-      const sale = response.data.sale || response.data.data;
+      let sale: any = null;
+      let queuedOffline = false;
 
-      // Imprimir cupom
       try {
-        await ThermalPrinter.printReceipt(sale);
+        const response = await api.post(`/branches/${selectedBranchId}/sales`, saleData);
+        sale = response.data.sale || response.data.data;
+      } catch (saleError: any) {
+        if (!saleError.response && selectedBranchId) {
+          // Sem resposta do servidor = provável falta de conexão.
+          // O pagamento (cartão/pix) já foi aprovado na maquininha, então
+          // a venda é guardada localmente e sincronizada quando a rede voltar.
+          await enqueueSale(selectedBranchId, saleData);
+          queuedOffline = true;
+        } else {
+          throw saleError;
+        }
+      }
+
+      try {
+        await ThermalPrinter.printReceipt(
+          sale || {
+            order_number: 'PENDENTE',
+            subtotal,
+            discount: itemsDiscountTotal + discountValue,
+            total,
+            items: items.map((i) => ({
+              product_name: i.product_name,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              total: i.unit_price * i.quantity - (i.discount || 0),
+            })),
+            payments: payments.map((p) => ({
+              payment_method_name: p.methodName,
+              amount: parseFloat(p.amountText.replace(',', '.')) || 0,
+            })),
+            created_at: new Date().toISOString(),
+          }
+        );
       } catch (printError) {
         console.warn('Erro ao imprimir:', printError);
       }
 
-      // Limpar carrinho
       clearCart();
 
-      // Mostrar sucesso
       Alert.alert(
-        '✅ Venda Realizada!',
-        `Venda #${sale.sale_number} finalizada com sucesso.`,
+        queuedOffline ? '📴 Venda Salva Offline' : '✅ Venda Realizada!',
+        queuedOffline
+          ? 'Sem conexão com o servidor. A venda foi salva no aparelho e será enviada automaticamente quando a internet voltar.'
+          : `Venda #${sale.sale_number} finalizada com sucesso.`,
         [
           {
             text: 'OK',
@@ -156,121 +289,123 @@ export default function PaymentScreen({ navigation }: Props) {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Desconto */}
-        <View style={styles.discountContainer}>
-          <Text style={styles.sectionTitle}>Desconto (R$)</Text>
-          <TextInput
-            style={styles.discountInput}
-            placeholder="0,00"
-            keyboardType="decimal-pad"
-            value={discount}
-            onChangeText={setDiscount}
-            editable={!processing}
-          />
-        </View>
-
-        {/* Total */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Total + Desconto */}
         <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>
-            {discountValue > 0
+            {itemsDiscountTotal + discountValue > 0
               ? `Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}  •  Total a Pagar`
               : 'Total a Pagar'}
           </Text>
           <Text style={styles.totalValue}>
             R$ {total.toFixed(2).replace('.', ',')}
           </Text>
+          <View style={styles.discountRow}>
+            <Text style={styles.discountRowLabel}>Desconto</Text>
+            <TextInput
+              style={styles.discountInput}
+              placeholder="0,00"
+              keyboardType="decimal-pad"
+              value={discount}
+              onChangeText={setDiscount}
+              editable={!processing}
+              placeholderTextColor="rgba(255,255,255,0.5)"
+            />
+          </View>
         </View>
 
-        {/* Payment Methods */}
-        <Text style={styles.sectionTitle}>Forma de Pagamento</Text>
-        <View style={styles.methodsGrid}>
-          {paymentMethods.map((method) => (
-            <TouchableOpacity
-              key={method.id}
-              style={[
-                styles.methodCard,
-                selectedMethod === method.id && styles.methodCardSelected,
-                selectedMethod === method.id && { borderColor: method.color },
-              ]}
-              onPress={() => setSelectedMethod(method.id)}
-              disabled={processing}
-            >
-              <Text style={styles.methodIcon}>{method.icon}</Text>
-              <Text
-                style={[
-                  styles.methodLabel,
-                  selectedMethod === method.id && { color: method.color },
-                ]}
-              >
-                {method.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Installments (only for credit) */}
-        {selectedMethod === 'credit' && (
-          <View style={styles.installmentsContainer}>
-            <Text style={styles.sectionTitle}>Parcelas</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.installmentsList}
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+        {/* Quick methods */}
+        <Text style={styles.sectionTitle}>Adicionar Forma de Pagamento</Text>
+        {loadingMethods ? (
+          <ActivityIndicator color="#2563eb" style={{ marginBottom: 16 }} />
+        ) : (
+          <View style={styles.methodsGrid}>
+            {QUICK_METHODS.map((method) => {
+              const available = !!methodByKind[method.kind];
+              return (
                 <TouchableOpacity
-                  key={num}
-                  style={[
-                    styles.installmentButton,
-                    installments === num && styles.installmentButtonActive,
-                  ]}
-                  onPress={() => setInstallments(num)}
+                  key={method.kind}
+                  style={[styles.methodCard, !available && styles.methodCardDisabled]}
+                  onPress={() => handleAddMethod(method.kind)}
+                  disabled={processing}
                 >
-                  <Text
-                    style={[
-                      styles.installmentText,
-                      installments === num && styles.installmentTextActive,
-                    ]}
-                  >
-                    {num}x
-                  </Text>
-                  <Text
-                    style={[
-                      styles.installmentValue,
-                      installments === num && styles.installmentValueActive,
-                    ]}
-                  >
-                    R$ {(total / num).toFixed(2).replace('.', ',')}
+                  <Text style={styles.methodIcon}>{method.icon}</Text>
+                  <Text style={styles.methodLabel} numberOfLines={1}>
+                    {method.label}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              );
+            })}
           </View>
         )}
 
-        {/* Valor recebido / Troco (only for cash) */}
-        {selectedMethod === 'cash' && (
-          <View style={styles.cashContainer}>
-            <Text style={styles.sectionTitle}>Valor Recebido</Text>
+        {/* Payments list */}
+        {payments.map((entry) => (
+          <View key={entry.key} style={styles.paymentEntryCard}>
+            <View style={styles.paymentEntryHeader}>
+              <Text style={styles.paymentEntryName}>{entry.methodName}</Text>
+              <TouchableOpacity onPress={() => handleRemovePayment(entry.key)}>
+                <Text style={styles.removeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
             <TextInput
-              style={styles.cashInput}
+              style={styles.entryAmountInput}
               placeholder="0,00"
               keyboardType="decimal-pad"
-              value={cashReceived}
-              onChangeText={setCashReceived}
+              value={entry.amountText}
+              onChangeText={(text) => handleChangeAmount(entry.key, text)}
+              editable={!processing}
             />
-            <View style={styles.changeRow}>
-              <Text style={styles.changeLabel}>Troco</Text>
-              <Text
-                style={[
-                  styles.changeValue,
-                  change < 0 && styles.changeValueNegative,
-                ]}
+
+            {entry.kind === 'credit' && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.installmentsList}
               >
-                R$ {Math.max(0, change).toFixed(2).replace('.', ',')}
-              </Text>
-            </View>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={[
+                      styles.installmentButton,
+                      entry.installments === num && styles.installmentButtonActive,
+                    ]}
+                    onPress={() => handleChangeInstallments(entry.key, num)}
+                  >
+                    <Text
+                      style={[
+                        styles.installmentText,
+                        entry.installments === num && styles.installmentTextActive,
+                      ]}
+                    >
+                      {num}x
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        ))}
+
+        {/* Summary */}
+        {payments.length > 0 && (
+          <View style={styles.changeRow}>
+            <Text style={styles.changeLabel}>
+              {remaining > 0.009 ? 'Falta Pagar' : 'Troco'}
+            </Text>
+            <Text
+              style={[
+                styles.changeValue,
+                remaining > 0.009 && styles.changeValueNegative,
+              ]}
+            >
+              R$ {Math.abs(remaining).toFixed(2).replace('.', ',')}
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -278,26 +413,16 @@ export default function PaymentScreen({ navigation }: Props) {
       {/* Confirm Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[
-            styles.confirmButton,
-            (!selectedMethod ||
-              processing ||
-              (selectedMethod === 'cash' && cashReceivedValue < total)) &&
-              styles.confirmButtonDisabled,
-          ]}
+          style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
           onPress={handlePayment}
-          disabled={
-            !selectedMethod ||
-            processing ||
-            (selectedMethod === 'cash' && cashReceivedValue < total)
-          }
+          disabled={!canConfirm}
           activeOpacity={0.8}
         >
           {processing ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.confirmButtonText}>
-              {selectedMethod ? 'Confirmar Pagamento' : 'Selecione uma forma'}
+              {payments.length === 0 ? 'Adicione uma forma' : 'Confirmar Pagamento'}
             </Text>
           )}
         </TouchableOpacity>
@@ -334,26 +459,43 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 28,
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 16,
   },
   totalContainer: {
     backgroundColor: '#2563eb',
     borderRadius: 16,
-    padding: 24,
+    padding: 16,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   totalValue: {
-    fontSize: 36,
+    fontSize: 30,
     fontWeight: '700',
     color: '#fff',
+  },
+  discountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  discountRowLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   sectionTitle: {
     fontSize: 16,
@@ -363,17 +505,16 @@ const styles = StyleSheet.create({
   },
   methodsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   methodCard: {
-    width: '48%',
+    width: '23.5%',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
     alignItems: 'center',
-    marginBottom: 12,
     borderWidth: 2,
     borderColor: 'transparent',
     shadowColor: '#000',
@@ -382,31 +523,65 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  methodCardSelected: {
-    backgroundColor: '#eff6ff',
+  methodCardDisabled: {
+    opacity: 0.4,
   },
   methodIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+    fontSize: 24,
+    marginBottom: 4,
   },
   methodLabel: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
     color: '#374151',
   },
-  installmentsContainer: {
-    marginBottom: 24,
+  paymentEntryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  paymentEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  paymentEntryName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  removeButton: {
+    fontSize: 16,
+    color: '#9ca3af',
+    padding: 4,
+  },
+  entryAmountInput: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#111827',
   },
   installmentsList: {
+    paddingTop: 10,
     paddingRight: 16,
   },
   installmentButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginRight: 10,
-    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginRight: 8,
     borderWidth: 2,
     borderColor: 'transparent',
   },
@@ -415,47 +590,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff',
   },
   installmentText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#374151',
   },
   installmentTextActive: {
     color: '#2563eb',
   },
-  installmentValue: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 4,
-  },
-  installmentValueActive: {
-    color: '#2563eb',
-  },
-  discountContainer: {
-    marginBottom: 16,
-  },
   discountInput: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
-    color: '#111827',
-  },
-  cashContainer: {
-    marginBottom: 24,
-  },
-  cashInput: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
-    color: '#111827',
-    marginBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    minWidth: 90,
+    textAlign: 'right',
   },
   changeRow: {
     flexDirection: 'row',
@@ -463,7 +614,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
   },
   changeLabel: {
     fontSize: 16,
@@ -479,20 +630,16 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#fff',
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
   confirmButton: {
     backgroundColor: '#2563eb',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     shadowColor: '#2563eb',
     shadowOffset: { width: 0, height: 4 },

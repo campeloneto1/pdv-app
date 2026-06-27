@@ -78,10 +78,10 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.cariripdvpos"
+    namespace "br.com.cariripdv.posapp.pdv"
     defaultConfig {
-        applicationId "com.cariripdvpos"
-        resValue "string", "build_config_package", "com.cariripdvpos"
+        applicationId "br.com.cariripdv.posapp.pdv"
+        resValue "string", "build_config_package", "br.com.cariripdv.posapp.pdv"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -39,6 +39,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
     cashRegister,
     setCashRegister,
     closeCashRegister,
+    setFeatureFlags,
   } = useSessionStore();
   const { items, clearCart } = useCartStore();
 
@@ -62,6 +63,8 @@ export default function CashRegisterScreen({ navigation }: Props) {
         navigation.navigate('BranchSelection');
         return;
       }
+
+      const featureFlags = await loadFeatureFlags(selectedBranchId);
 
       const response = await api.get(
         `/cash-registers/branch/${selectedBranchId}/current`
@@ -90,6 +93,10 @@ export default function CashRegisterScreen({ navigation }: Props) {
           status: 'open',
           opened_at: existingCashRegister.opened_at,
         });
+      } else if (featureFlags.auto_cash_register) {
+        // Filial com abertura automática de caixa: abre silenciosamente e segue pra venda
+        await autoOpenCashRegister(selectedBranchId);
+        return;
       } else {
         setHasOpenCashRegister(false);
       }
@@ -100,6 +107,43 @@ export default function CashRegisterScreen({ navigation }: Props) {
       }
       setHasOpenCashRegister(false);
     } finally {
+      setCheckingStatus(false);
+    }
+  };
+
+  const loadFeatureFlags = async (branchId: number): Promise<Record<string, boolean>> => {
+    try {
+      const response = await api.get(`/branches/${branchId}/features`);
+      const flags = response.data?.feature_flags || {};
+      setFeatureFlags(flags);
+      return flags;
+    } catch (err) {
+      return {};
+    }
+  };
+
+  const autoOpenCashRegister = async (branchId: number) => {
+    try {
+      const response = await api.post('/cash-registers/open', {
+        branch_id: branchId,
+        opening_balance: 0,
+      });
+
+      const newCashRegister = response.data?.cash_register;
+      if (newCashRegister) {
+        setCashRegister({
+          id: newCashRegister.id,
+          branch_id: newCashRegister.branch?.id ?? branchId,
+          user_id: newCashRegister.user?.id,
+          opening_balance: 0,
+          status: 'open',
+          opened_at: newCashRegister.opened_at,
+        });
+      }
+      navigation.navigate('Sales');
+    } catch (err: any) {
+      // Se a abertura automática falhar, cai no fluxo manual normalmente
+      setHasOpenCashRegister(false);
       setCheckingStatus(false);
     }
   };
@@ -220,7 +264,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
   if (checkingStatus) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color="#2563eb" />
         <Text style={styles.loadingText}>Verificando caixa...</Text>
       </View>
     );
@@ -235,16 +279,17 @@ export default function CashRegisterScreen({ navigation }: Props) {
         </TouchableOpacity>
         <Text style={styles.branchName}>{selectedBranchName}</Text>
         <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
-          <Text style={[styles.headerButtonText, { color: '#fca5a5' }]}>Sair</Text>
+          <Text style={[styles.headerButtonText, { color: '#ef4444' }]}>Sair</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.divider} />
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content}>
         {hasOpenCashRegister ? (
           <View style={styles.centerContent}>
             {/* Cash Register Open */}
-            <View style={styles.iconContainer}>
+            <View style={[styles.iconContainer, styles.iconContainerSuccess]}>
               <Text style={styles.checkIcon}>✓</Text>
             </View>
             <Text style={styles.title}>Caixa já está aberto</Text>
@@ -289,7 +334,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
                 value={openingBalance}
                 onChangeText={setOpeningBalance}
                 placeholder="0,00"
-                placeholderTextColor="#93c5fd"
+                placeholderTextColor="#9ca3af"
                 keyboardType="decimal-pad"
               />
             </View>
@@ -307,7 +352,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
               activeOpacity={0.8}
             >
               {loading ? (
-                <ActivityIndicator color="#2563eb" />
+                <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.primaryButtonText}>Abrir Caixa</Text>
               )}
@@ -412,16 +457,16 @@ export default function CashRegisterScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#f3f4f6',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#f3f4f6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    color: '#93c5fd',
+    color: '#6b7280',
     marginTop: 16,
     fontSize: 16,
   },
@@ -429,6 +474,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingTop: 50,
     paddingBottom: 16,
@@ -437,14 +483,18 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerButtonText: {
-    color: '#fff',
+    color: '#2563eb',
     fontSize: 16,
     fontWeight: '600',
   },
   branchName: {
-    color: '#fff',
+    color: '#111827',
     fontSize: 16,
     fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
   },
   content: {
     flexGrow: 1,
@@ -458,10 +508,13 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  iconContainerSuccess: {
+    backgroundColor: '#f0fdf4',
   },
   checkIcon: {
     fontSize: 40,
@@ -471,33 +524,38 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#93c5fd',
+    color: '#6b7280',
     marginBottom: 32,
     textAlign: 'center',
   },
   infoCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     width: '100%',
     alignItems: 'center',
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   infoLabel: {
-    color: '#93c5fd',
+    color: '#6b7280',
     fontSize: 14,
     marginBottom: 4,
   },
   infoValue: {
-    color: '#fff',
+    color: '#111827',
     fontSize: 28,
     fontWeight: '700',
   },
@@ -506,24 +564,24 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputLabel: {
-    color: '#fff',
+    color: '#374151',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#fff',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: '#e5e7eb',
     borderRadius: 12,
     padding: 16,
     fontSize: 24,
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
     textAlign: 'center',
   },
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: '#fef2f2',
     borderWidth: 1,
     borderColor: '#ef4444',
     borderRadius: 12,
@@ -532,31 +590,31 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   errorText: {
-    color: '#fca5a5',
+    color: '#ef4444',
     textAlign: 'center',
   },
   primaryButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     paddingVertical: 18,
     paddingHorizontal: 32,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#2563eb',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
   primaryButtonText: {
-    color: '#2563eb',
+    color: '#fff',
     fontSize: 18,
     fontWeight: '700',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: '#e5e7eb',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 32,
@@ -565,7 +623,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   secondaryButtonText: {
-    color: '#fff',
+    color: '#374151',
     fontSize: 16,
     fontWeight: '600',
   },

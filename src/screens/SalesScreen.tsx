@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,12 +11,14 @@ import {
   Image,
   Dimensions,
   Modal,
+  Alert,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useSessionStore } from '../store/sessionStore';
 import api, { extractArrayData } from '../api/api';
 import { Category, Product, getImageUrl } from '../types';
+import { getPendingCount, syncPendingSales } from '../services/offline/offlineQueue';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -32,10 +35,14 @@ export default function SalesScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [scanningBarcode, setScanningBarcode] = useState(false);
+  const [pendingSalesCount, setPendingSalesCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   const { selectedBranch, logout } = useAuthStore();
   const { items, addItem, clearCart } = useCartStore();
-  const { cashRegister, closeCashRegister, selectedBranchName } = useSessionStore();
+  const { cashRegister, closeCashRegister, selectedBranchName, isOfflineMode } =
+    useSessionStore();
 
   const filteredProducts = searchQuery.trim()
     ? products.filter((p) =>
@@ -53,6 +60,31 @@ export default function SalesScreen({ navigation }: Props) {
     }
     loadCategories();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshPendingCount();
+    }, [])
+  );
+
+  const refreshPendingCount = async () => {
+    setPendingSalesCount(await getPendingCount());
+  };
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncPendingSales();
+      await refreshPendingCount();
+      if (result.synced > 0) {
+        Alert.alert('Sincronização', `${result.synced} venda(s) sincronizada(s) com sucesso.`);
+      } else if (result.failed === 0) {
+        Alert.alert('Sincronização', 'Nenhuma venda pendente ou sem conexão com o servidor.');
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedCategoryId) {
@@ -98,6 +130,30 @@ export default function SalesScreen({ navigation }: Props) {
     });
   }, [addItem]);
 
+  // Leitores de código de barras (USB/Bluetooth) funcionam como teclado:
+  // digitam o código e disparam um Enter ao final.
+  const handleBarcodeSubmit = async () => {
+    const code = searchQuery.trim();
+    if (!code || scanningBarcode) return;
+
+    setScanningBarcode(true);
+    try {
+      const response = await api.get(`/products/barcode/${encodeURIComponent(code)}`);
+      const product = response.data?.product || response.data?.data;
+      if (product) {
+        handleAddToCart(product);
+        setSearchQuery('');
+      }
+    } catch (error: any) {
+      if (error?.response?.status !== 404) {
+        Alert.alert('Erro', 'Não foi possível buscar o produto pelo código de barras');
+      }
+      // 404: não é um código de barras válido, mantém como busca por nome
+    } finally {
+      setScanningBarcode(false);
+    }
+  };
+
   const handleOpenMenu = () => {
     setShowMenu(true);
   };
@@ -117,6 +173,11 @@ export default function SalesScreen({ navigation }: Props) {
   const handleCloseCashRegister = () => {
     setShowMenu(false);
     navigation.navigate('CashRegister');
+  };
+
+  const handleContact = () => {
+    setShowMenu(false);
+    navigation.navigate('Contact');
   };
 
   const handleLogout = () => {
@@ -196,18 +257,32 @@ export default function SalesScreen({ navigation }: Props) {
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{selectedBranch?.name}</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {(isOfflineMode || pendingSalesCount > 0) && (
+            <View style={styles.offlineBadge}>
+              <Text style={styles.offlineBadgeText}>
+                {isOfflineMode ? '📴' : `🔄 ${pendingSalesCount}`}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Search */}
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar produto..."
+          placeholder="Buscar produto ou escanear código de barras..."
           placeholderTextColor="#9ca3af"
           value={searchQuery}
           onChangeText={setSearchQuery}
+          onSubmitEditing={handleBarcodeSubmit}
+          returnKeyType="search"
+          blurOnSubmit={false}
         />
+        {scanningBarcode && (
+          <ActivityIndicator size="small" color="#2563eb" style={styles.searchSpinner} />
+        )}
       </View>
 
       {/* Categories */}
@@ -300,6 +375,27 @@ export default function SalesScreen({ navigation }: Props) {
               <Text style={styles.menuItemText}>Fechar Caixa</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={styles.menuItem} onPress={handleContact}>
+              <Text style={styles.menuItemIcon}>☎️</Text>
+              <Text style={styles.menuItemText}>Fale Conosco</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                handleSyncNow();
+              }}
+              disabled={syncing}
+            >
+              <Text style={styles.menuItemIcon}>🔄</Text>
+              <Text style={styles.menuItemText}>
+                {syncing
+                  ? 'Sincronizando...'
+                  : `Sincronizar Vendas Pendentes${pendingSalesCount > 0 ? ` (${pendingSalesCount})` : ''}`}
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.menuDivider} />
 
             <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
@@ -352,8 +448,23 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  offlineBadge: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  offlineBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400e',
   },
   searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -361,12 +472,16 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   searchInput: {
+    flex: 1,
     backgroundColor: '#f3f4f6',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
     color: '#111827',
+  },
+  searchSpinner: {
+    marginLeft: 10,
   },
   categoriesContainer: {
     backgroundColor: '#fff',

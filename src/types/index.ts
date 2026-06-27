@@ -57,13 +57,13 @@ export interface CartItem {
   product_name: string;
   quantity: number;
   unit_price: number;
+  discount?: number;
   notes?: string;
 }
 
 export interface PaymentMethod {
   id: number;
   name: string;
-  type: 'cash' | 'credit' | 'debit' | 'pix' | 'other';
   active: boolean;
 }
 

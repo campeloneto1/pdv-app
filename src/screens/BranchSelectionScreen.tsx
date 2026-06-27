@@ -100,6 +100,7 @@ export default function BranchSelectionScreen({ navigation }: Props) {
           <Text style={styles.logoutText}>Sair</Text>
         </TouchableOpacity>
       </View>
+      <View style={styles.divider} />
 
       {/* Branch List */}
       <FlatList
@@ -120,23 +121,24 @@ export default function BranchSelectionScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#f3f4f6',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#2563eb',
+    backgroundColor: '#f3f4f6',
   },
   loadingText: {
     marginTop: 16,
-    color: '#fff',
+    color: '#6b7280',
     fontSize: 16,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 24,
@@ -146,26 +148,31 @@ const styles = StyleSheet.create({
   },
   welcome: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#6b7280',
     marginBottom: 4,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#111827',
   },
   logoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#fef2f2',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   logoutText: {
-    color: '#fff',
+    color: '#ef4444',
     fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
   },
   listContent: {
     paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 40,
   },
   branchCard: {
@@ -176,10 +183,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   branchIcon: {
     width: 48,
@@ -215,7 +222,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#6b7280',
     fontSize: 16,
   },
 });
