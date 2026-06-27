@@ -13,6 +13,7 @@ import { useCartStore } from '../store/cartStore';
 import { useSessionStore } from '../store/sessionStore';
 import { StonePayment } from '../services/payment/stone';
 import { ThermalPrinter } from '../services/printer/thermalPrinter';
+import { printProductionCopy } from '../services/printer/networkPrintService';
 import api, { extractArrayData } from '../api/api';
 import { PaymentMethod } from '../types';
 import { enqueueSale } from '../services/offline/offlineQueue';
@@ -58,9 +59,10 @@ export default function PaymentScreen({ navigation }: Props) {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [processing, setProcessing] = useState(false);
   const [discount, setDiscount] = useState('');
+  const [customerName, setCustomerName] = useState('');
 
   const { items, clearCart } = useCartStore();
-  const { selectedBranchId } = useSessionStore();
+  const { selectedBranchId, selectedBranchName } = useSessionStore();
 
   useEffect(() => {
     loadPaymentMethods();
@@ -150,6 +152,47 @@ export default function PaymentScreen({ navigation }: Props) {
     payments.every((p) => (parseFloat(p.amountText.replace(',', '.')) || 0) > 0) &&
     remaining <= 0.009;
 
+  /**
+   * Via de PRODUÇÃO: manda direto (TCP) pra impressora de rede cadastrada
+   * na filial. Não bloqueia a venda - se não houver impressora configurada
+   * ou a conexão falhar, só loga o aviso (a via do cliente já saiu pela
+   * maquininha, que é o que importa pro fechamento da venda).
+   */
+  const printProductionReceipt = async (
+    orderNumber: string | number,
+    createdAt: string
+  ) => {
+    if (!selectedBranchId) return;
+
+    const printersResponse = await api.get(`/branches/${selectedBranchId}/printers`);
+    const printers = extractArrayData(printersResponse);
+    const activePrinter = printers.find((p: any) => p.active && p.connection);
+
+    if (!activePrinter) return;
+
+    await printProductionCopy(activePrinter.connection, {
+      company_name: selectedBranchName || 'Empresa',
+      branch_name: selectedBranchName || '',
+      order_number: orderNumber,
+      date: new Date(createdAt).toLocaleString('pt-BR'),
+      customer_name: customerName || undefined,
+      items: items.map((i) => ({
+        name: i.product_name,
+        quantity: i.quantity,
+        price: i.unit_price,
+        total: i.unit_price * i.quantity - (i.discount || 0),
+        notes: i.notes,
+      })),
+      subtotal,
+      discount: itemsDiscountTotal + discountValue,
+      total,
+      payments: payments.map((p) => ({
+        method: p.methodName,
+        amount: parseFloat(p.amountText.replace(',', '.')) || 0,
+      })),
+    });
+  };
+
   const handlePayment = async () => {
     if (!canConfirm) return;
 
@@ -209,6 +252,7 @@ export default function PaymentScreen({ navigation }: Props) {
           amount: parseFloat(p.amountText.replace(',', '.')) || 0,
         })),
         discount: discountValue,
+        customer_name: customerName || undefined,
       };
 
       let sale: any = null;
@@ -229,29 +273,38 @@ export default function PaymentScreen({ navigation }: Props) {
         }
       }
 
+      const orderNumber = sale?.order_number ?? sale?.sale_number ?? 'PENDENTE';
+      const createdAt = sale?.created_at || new Date().toISOString();
+
+      // Via do CLIENTE: impressora interna da maquininha (SDK Stone)
       try {
-        await ThermalPrinter.printReceipt(
-          sale || {
-            order_number: 'PENDENTE',
-            subtotal,
-            discount: itemsDiscountTotal + discountValue,
-            total,
-            items: items.map((i) => ({
-              product_name: i.product_name,
-              quantity: i.quantity,
-              unit_price: i.unit_price,
-              total: i.unit_price * i.quantity - (i.discount || 0),
-            })),
-            payments: payments.map((p) => ({
-              payment_method_name: p.methodName,
-              amount: parseFloat(p.amountText.replace(',', '.')) || 0,
-            })),
-            created_at: new Date().toISOString(),
-          }
-        );
+        await ThermalPrinter.printReceipt({
+          order_number: orderNumber,
+          customer_name: customerName || undefined,
+          subtotal,
+          discount: itemsDiscountTotal + discountValue,
+          total,
+          items: items.map((i) => ({
+            product_name: i.product_name,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            total: i.unit_price * i.quantity - (i.discount || 0),
+            notes: i.notes,
+          })),
+          payments: payments.map((p) => ({
+            payment_method_name: p.methodName,
+            amount: parseFloat(p.amountText.replace(',', '.')) || 0,
+          })),
+          created_at: createdAt,
+        });
       } catch (printError) {
-        console.warn('Erro ao imprimir:', printError);
+        console.warn('Erro ao imprimir via do cliente:', printError);
       }
+
+      // Via de PRODUÇÃO: impressora de rede cadastrada na filial (se houver)
+      printProductionReceipt(orderNumber, createdAt).catch((productionError) =>
+        console.warn('Erro ao imprimir via de produção:', productionError)
+      );
 
       clearCart();
 
@@ -316,6 +369,19 @@ export default function PaymentScreen({ navigation }: Props) {
               placeholderTextColor="rgba(255,255,255,0.5)"
             />
           </View>
+        </View>
+
+        {/* Nome do cliente */}
+        <View style={styles.customerNameContainer}>
+          <Text style={styles.sectionTitle}>Nome do Cliente (opcional)</Text>
+          <TextInput
+            style={styles.customerNameInput}
+            placeholder="Ex: João"
+            placeholderTextColor="#9ca3af"
+            value={customerName}
+            onChangeText={setCustomerName}
+            editable={!processing}
+          />
         </View>
 
         {/* Quick methods */}
@@ -502,6 +568,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#374151',
     marginBottom: 12,
+  },
+  customerNameContainer: {
+    marginBottom: 16,
+  },
+  customerNameInput: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
   },
   methodsGrid: {
     flexDirection: 'row',
