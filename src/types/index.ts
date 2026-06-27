@@ -15,11 +15,16 @@ export interface Branch {
   phone?: string;
 }
 
+export interface Upload {
+  id: number;
+  url: string;
+  file_url?: string;
+}
+
 export interface Category {
   id: number;
   name: string;
   description?: string;
-  image_url?: string;
   products_count?: number;
 }
 
@@ -31,11 +36,20 @@ export interface Product {
   cost_price?: number;
   sku?: string;
   barcode?: string;
-  image_url?: string;
+  upload?: Upload | null;
+  uploads?: Upload[];
   category_id: number;
   category?: Category;
   stock_quantity?: number;
   active: boolean;
+}
+
+export function getImageUrl(item: { upload?: Upload | null; uploads?: Upload[] }): string | null {
+  if (item.upload?.url) return item.upload.url;
+  if (item.upload?.file_url) return item.upload.file_url;
+  if (item.uploads?.[0]?.url) return item.uploads[0].url;
+  if (item.uploads?.[0]?.file_url) return item.uploads[0].file_url;
+  return null;
 }
 
 export interface CartItem {

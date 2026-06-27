@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -14,7 +15,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useSessionStore } from '../store/sessionStore';
 import api, { extractArrayData } from '../api/api';
-import { Category, Product } from '../types';
+import { Category, Product, getImageUrl } from '../types';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -27,6 +28,7 @@ export default function SalesScreen({ navigation }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -34,6 +36,12 @@ export default function SalesScreen({ navigation }: Props) {
   const { selectedBranch, logout } = useAuthStore();
   const { items, addItem, clearCart } = useCartStore();
   const { cashRegister, closeCashRegister, selectedBranchName } = useSessionStore();
+
+  const filteredProducts = searchQuery.trim()
+    ? products.filter((p) =>
+        p.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      )
+    : products;
 
   const cartTotal = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -142,14 +150,16 @@ export default function SalesScreen({ navigation }: Props) {
     </TouchableOpacity>
   );
 
-  const renderProductItem = ({ item }: { item: Product }) => (
+  const renderProductItem = ({ item }: { item: Product }) => {
+    const imageUrl = getImageUrl(item);
+    return (
     <TouchableOpacity
       style={styles.productCard}
       onPress={() => handleAddToCart(item)}
       activeOpacity={0.7}
     >
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={styles.productImage} />
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.productImage} />
       ) : (
         <View style={styles.productImagePlaceholder}>
           <Text style={styles.productImageEmoji}>📦</Text>
@@ -167,7 +177,8 @@ export default function SalesScreen({ navigation }: Props) {
         <Text style={styles.addButtonText}>+</Text>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -186,6 +197,17 @@ export default function SalesScreen({ navigation }: Props) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{selectedBranch?.name}</Text>
         <View style={styles.headerRight} />
+      </View>
+
+      {/* Search */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar produto..."
+          placeholderTextColor="#9ca3af"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
       </View>
 
       {/* Categories */}
@@ -207,7 +229,7 @@ export default function SalesScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={products}
+          data={filteredProducts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderProductItem}
           numColumns={2}
@@ -216,7 +238,11 @@ export default function SalesScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Nenhum produto nesta categoria</Text>
+              <Text style={styles.emptyText}>
+                {searchQuery.trim()
+                  ? 'Nenhum produto encontrado'
+                  : 'Nenhum produto nesta categoria'}
+              </Text>
             </View>
           }
         />
@@ -326,6 +352,21 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+  },
+  searchContainer: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  searchInput: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
   },
   categoriesContainer: {
     backgroundColor: '#fff',

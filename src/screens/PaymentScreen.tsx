@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -25,15 +26,22 @@ export default function PaymentScreen({ navigation }: Props) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentType | null>(null);
   const [processing, setProcessing] = useState(false);
   const [installments, setInstallments] = useState(1);
+  const [cashReceived, setCashReceived] = useState('');
+  const [discount, setDiscount] = useState('');
 
   const { items, clearCart } = useCartStore();
   const { selectedBranch } = useAuthStore();
   const { cashRegister } = useSessionStore();
 
-  const total = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + item.unit_price * item.quantity,
     0
   );
+  const discountValue = parseFloat(discount.replace(',', '.')) || 0;
+  const total = Math.max(0, subtotal - discountValue);
+
+  const cashReceivedValue = parseFloat(cashReceived.replace(',', '.')) || 0;
+  const change = cashReceivedValue - total;
 
   const paymentMethods = [
     { id: 'credit' as PaymentType, label: 'Crédito', icon: '💳', color: '#8b5cf6' },
@@ -45,6 +53,11 @@ export default function PaymentScreen({ navigation }: Props) {
   const handlePayment = async () => {
     if (!selectedMethod) {
       Alert.alert('Atenção', 'Selecione uma forma de pagamento');
+      return;
+    }
+
+    if (selectedMethod === 'cash' && cashReceivedValue < total) {
+      Alert.alert('Atenção', 'O valor recebido é menor que o total da venda');
       return;
     }
 
@@ -83,6 +96,7 @@ export default function PaymentScreen({ navigation }: Props) {
           product_id: item.product_id,
           quantity: item.quantity,
           unit_price: item.unit_price,
+          notes: item.notes || '',
         })),
         payments: [
           {
@@ -91,6 +105,8 @@ export default function PaymentScreen({ navigation }: Props) {
             transaction_id: paymentResult.transactionId,
           },
         ],
+        subtotal,
+        discount: discountValue,
         total,
       };
 
@@ -141,9 +157,26 @@ export default function PaymentScreen({ navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Desconto */}
+        <View style={styles.discountContainer}>
+          <Text style={styles.sectionTitle}>Desconto (R$)</Text>
+          <TextInput
+            style={styles.discountInput}
+            placeholder="0,00"
+            keyboardType="decimal-pad"
+            value={discount}
+            onChangeText={setDiscount}
+            editable={!processing}
+          />
+        </View>
+
         {/* Total */}
         <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>Total a Pagar</Text>
+          <Text style={styles.totalLabel}>
+            {discountValue > 0
+              ? `Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}  •  Total a Pagar`
+              : 'Total a Pagar'}
+          </Text>
           <Text style={styles.totalValue}>
             R$ {total.toFixed(2).replace('.', ',')}
           </Text>
@@ -215,6 +248,31 @@ export default function PaymentScreen({ navigation }: Props) {
             </ScrollView>
           </View>
         )}
+
+        {/* Valor recebido / Troco (only for cash) */}
+        {selectedMethod === 'cash' && (
+          <View style={styles.cashContainer}>
+            <Text style={styles.sectionTitle}>Valor Recebido</Text>
+            <TextInput
+              style={styles.cashInput}
+              placeholder="0,00"
+              keyboardType="decimal-pad"
+              value={cashReceived}
+              onChangeText={setCashReceived}
+            />
+            <View style={styles.changeRow}>
+              <Text style={styles.changeLabel}>Troco</Text>
+              <Text
+                style={[
+                  styles.changeValue,
+                  change < 0 && styles.changeValueNegative,
+                ]}
+              >
+                R$ {Math.max(0, change).toFixed(2).replace('.', ',')}
+              </Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Confirm Button */}
@@ -222,10 +280,17 @@ export default function PaymentScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[
             styles.confirmButton,
-            (!selectedMethod || processing) && styles.confirmButtonDisabled,
+            (!selectedMethod ||
+              processing ||
+              (selectedMethod === 'cash' && cashReceivedValue < total)) &&
+              styles.confirmButtonDisabled,
           ]}
           onPress={handlePayment}
-          disabled={!selectedMethod || processing}
+          disabled={
+            !selectedMethod ||
+            processing ||
+            (selectedMethod === 'cash' && cashReceivedValue < total)
+          }
           activeOpacity={0.8}
         >
           {processing ? (
@@ -364,6 +429,54 @@ const styles = StyleSheet.create({
   },
   installmentValueActive: {
     color: '#2563eb',
+  },
+  discountContainer: {
+    marginBottom: 16,
+  },
+  discountInput: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    color: '#111827',
+  },
+  cashContainer: {
+    marginBottom: 24,
+  },
+  cashInput: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    color: '#111827',
+    marginBottom: 12,
+  },
+  changeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  changeLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  changeValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#22c55e',
+  },
+  changeValueNegative: {
+    color: '#ef4444',
   },
   footer: {
     position: 'absolute',

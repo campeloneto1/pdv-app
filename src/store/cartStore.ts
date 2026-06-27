@@ -15,6 +15,7 @@ interface CartState {
   addItem: (item: CartItem) => void;
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
+  updateNotes: (productId: number, notes: string) => void;
   setCustomerName: (name: string) => void;
   clearCart: () => void;
 }
@@ -72,6 +73,15 @@ export const useCartStore = create<CartState>()(
           );
           set({ items: newItems });
         }
+      },
+
+      updateNotes: (productId: number, notes: string) => {
+        const { items } = get();
+        set({
+          items: items.map((item) =>
+            item.product_id === productId ? { ...item, notes } : item
+          ),
+        });
       },
 
       setCustomerName: (name: string) => {

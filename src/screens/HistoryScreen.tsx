@@ -105,22 +105,7 @@ export default function HistoryScreen({ navigation }: Props) {
     setPrintingId(sale.id);
 
     try {
-      await ThermalPrinter.printReceipt({
-        id: sale.id,
-        sale_number: sale.order_number,
-        items: sale.items.map(item => ({
-          name: item.product?.name || 'Produto',
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-        })),
-        total: sale.total,
-        discount: sale.discount,
-        payments: sale.payments.map(p => ({
-          method: p.payment_method.name,
-          amount: p.amount,
-        })),
-        created_at: sale.created_at,
-      });
+      await ThermalPrinter.printReceipt(sale);
 
       Alert.alert('Sucesso', `Comprovante #${sale.order_number} enviado para impressão!`);
     } catch (err: any) {

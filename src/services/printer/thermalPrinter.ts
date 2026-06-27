@@ -6,9 +6,34 @@
  */
 
 import { NativeModules, Platform } from 'react-native';
-import { Sale } from '../../types';
 
 const { PrinterModule } = NativeModules;
+
+interface ReceiptItem {
+  product?: { name: string } | null;
+  product_name?: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  notes?: string;
+}
+
+interface ReceiptPayment {
+  payment_method?: { name: string } | null;
+  payment_method_name?: string;
+  amount: number;
+}
+
+interface ReceiptSale {
+  order_number: string;
+  customer_name?: string | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+  items: ReceiptItem[];
+  payments: ReceiptPayment[];
+  created_at: string;
+}
 
 const isPrinterAvailable = Platform.OS === 'android' && PrinterModule !== undefined;
 
@@ -41,7 +66,7 @@ export const ThermalPrinter = {
   /**
    * Imprime cupom de venda formatado
    */
-  async printReceipt(sale: Sale): Promise<boolean> {
+  async printReceipt(sale: ReceiptSale): Promise<boolean> {
     const receipt = formatReceipt(sale);
     return this.print(receipt);
   },
@@ -85,7 +110,7 @@ export const ThermalPrinter = {
  * Formata o cupom de venda para impressão térmica
  * Largura padrão: 32 ou 48 caracteres dependendo da máquina
  */
-function formatReceipt(sale: Sale): string {
+function formatReceipt(sale: ReceiptSale): string {
   const LINE_WIDTH = 32;
   const SEPARATOR = '='.repeat(LINE_WIDTH);
   const THIN_SEPARATOR = '-'.repeat(LINE_WIDTH);
@@ -98,7 +123,7 @@ function formatReceipt(sale: Sale): string {
   lines.push(SEPARATOR);
 
   // Info da venda
-  lines.push(`Venda #${sale.sale_number}`);
+  lines.push(`Venda #${sale.order_number}`);
   lines.push(`Data: ${formatDate(sale.created_at)}`);
   if (sale.customer_name) {
     lines.push(`Cliente: ${sale.customer_name}`);
@@ -111,7 +136,10 @@ function formatReceipt(sale: Sale): string {
 
   sale.items.forEach((item) => {
     // Nome do produto (pode quebrar linha)
-    const productName = truncateText(item.product_name, LINE_WIDTH - 10);
+    const productName = truncateText(
+      item.product?.name || item.product_name || 'Produto',
+      LINE_WIDTH - 10
+    );
     lines.push(productName);
 
     // Quantidade x Preço = Total
@@ -120,6 +148,10 @@ function formatReceipt(sale: Sale): string {
     const total = formatCurrency(item.total);
     const itemLine = `  ${qty} ${price}`.padEnd(LINE_WIDTH - total.length) + total;
     lines.push(itemLine);
+
+    if (item.notes) {
+      lines.push(`  Obs: ${item.notes}`);
+    }
   });
 
   lines.push(THIN_SEPARATOR);
@@ -137,9 +169,10 @@ function formatReceipt(sale: Sale): string {
   if (sale.payments && sale.payments.length > 0) {
     lines.push(centerText('PAGAMENTO', LINE_WIDTH));
     sale.payments.forEach((payment) => {
+      const methodName = payment.payment_method?.name || payment.payment_method_name || 'Pagamento';
       lines.push(
         formatLineItem(
-          payment.payment_method_name + ':',
+          methodName + ':',
           formatCurrency(payment.amount),
           LINE_WIDTH
         )

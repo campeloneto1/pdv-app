@@ -5,6 +5,8 @@ import Config from 'react-native-config';
 // Configuração base da API
 const API_BASE_URL = Config.API_BASE_URL || 'https://api.cariripdv.com.br/api';
 
+console.log('API URL:', API_BASE_URL);
+
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -57,11 +59,15 @@ api.interceptors.response.use(
 );
 
 // Helper para extrair dados do response
+const ARRAY_WRAPPER_KEYS = ['data', 'branches', 'categories', 'products', 'sales', 'items'];
+
 export const extractArrayData = (response: any): any[] => {
   const data = response?.data;
   if (Array.isArray(data)) return data;
-  if (data?.data && Array.isArray(data.data)) return data.data;
-  if (data?.items && Array.isArray(data.items)) return data.items;
+  if (!data || typeof data !== 'object') return [];
+  for (const key of ARRAY_WRAPPER_KEYS) {
+    if (Array.isArray(data[key])) return data[key];
+  }
   return [];
 };
 

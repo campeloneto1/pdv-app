@@ -2,6 +2,7 @@ import React from 'react';
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -15,7 +16,7 @@ interface Props {
 }
 
 export default function CartScreen({ navigation }: Props) {
-  const { items, updateQuantity, removeItem, clearCart } = useCartStore();
+  const { items, updateQuantity, removeItem, updateNotes, clearCart } = useCartStore();
 
   const total = items.reduce(
     (sum, item) => sum + item.unit_price * item.quantity,
@@ -64,41 +65,51 @@ export default function CartScreen({ navigation }: Props) {
 
   const renderCartItem = ({ item }: { item: CartItem }) => (
     <View style={styles.cartItem}>
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName} numberOfLines={2}>
-          {item.product_name}
-        </Text>
-        <Text style={styles.itemPrice}>
-          R$ {item.unit_price.toFixed(2).replace('.', ',')}
-        </Text>
+      <View style={styles.cartItemRow}>
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemName} numberOfLines={2}>
+            {item.product_name}
+          </Text>
+          <Text style={styles.itemPrice}>
+            R$ {item.unit_price.toFixed(2).replace('.', ',')}
+          </Text>
+        </View>
+
+        <View style={styles.quantityControls}>
+          <TouchableOpacity
+            style={styles.quantityButton}
+            onPress={() => handleDecrement(item.product_id)}
+          >
+            <Text style={styles.quantityButtonText}>−</Text>
+          </TouchableOpacity>
+          <Text style={styles.quantity}>{item.quantity}</Text>
+          <TouchableOpacity
+            style={styles.quantityButton}
+            onPress={() => handleIncrement(item.product_id)}
+          >
+            <Text style={styles.quantityButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.itemTotal}>
+          <Text style={styles.itemTotalText}>
+            R$ {(item.unit_price * item.quantity).toFixed(2).replace('.', ',')}
+          </Text>
+          <TouchableOpacity
+            onPress={() => handleRemove(item.product_id, item.product_name)}
+          >
+            <Text style={styles.removeText}>🗑️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.quantityControls}>
-        <TouchableOpacity
-          style={styles.quantityButton}
-          onPress={() => handleDecrement(item.product_id)}
-        >
-          <Text style={styles.quantityButtonText}>−</Text>
-        </TouchableOpacity>
-        <Text style={styles.quantity}>{item.quantity}</Text>
-        <TouchableOpacity
-          style={styles.quantityButton}
-          onPress={() => handleIncrement(item.product_id)}
-        >
-          <Text style={styles.quantityButtonText}>+</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.itemTotal}>
-        <Text style={styles.itemTotalText}>
-          R$ {(item.unit_price * item.quantity).toFixed(2).replace('.', ',')}
-        </Text>
-        <TouchableOpacity
-          onPress={() => handleRemove(item.product_id, item.product_name)}
-        >
-          <Text style={styles.removeText}>🗑️</Text>
-        </TouchableOpacity>
-      </View>
+      <TextInput
+        style={styles.notesInput}
+        placeholder="Ex: sem cebola, bem passado..."
+        placeholderTextColor="#9ca3af"
+        value={item.notes || ''}
+        onChangeText={(text) => updateNotes(item.product_id, text)}
+      />
     </View>
   );
 
@@ -195,8 +206,6 @@ const styles = StyleSheet.create({
     paddingBottom: 200,
   },
   cartItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
@@ -206,6 +215,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  cartItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notesInput: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#111827',
   },
   itemInfo: {
     flex: 1,

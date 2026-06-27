@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { useSessionStore } from '../store/sessionStore';
 import { useCartStore } from '../store/cartStore';
@@ -41,62 +42,67 @@ export default function CashRegisterScreen({ navigation }: Props) {
   } = useSessionStore();
   const { items, clearCart } = useCartStore();
 
-  // Check if there's already an open cash register
-  useEffect(() => {
-    // If there are cart items and open cash register, go to sales
-    if (items.length > 0 && cashRegister?.id) {
-      navigation.navigate('Sales');
-      return;
-    }
-
-    const checkOpenCashRegister = async () => {
-      try {
-        if (!selectedBranchId) {
-          navigation.navigate('BranchSelection');
-          return;
-        }
-
-        const response = await api.get(
-          `/cash-registers/branch/${selectedBranchId}/current`
-        );
-
-        const responseData = response.data;
-        const cashRegisterCandidate =
-          responseData?.cash_register ||
-          responseData?.data?.cash_register ||
-          responseData?.current_cash_register ||
-          responseData?.cashRegister ||
-          responseData?.data;
-
-        const existingCashRegister =
-          cashRegisterCandidate && !Array.isArray(cashRegisterCandidate)
-            ? cashRegisterCandidate
-            : null;
-
-        if (existingCashRegister?.id) {
-          setHasOpenCashRegister(true);
-          setCashRegister({
-            id: existingCashRegister.id,
-            branch_id: existingCashRegister.branch_id,
-            opening_balance: existingCashRegister.opening_balance || 0,
-            status: 'open',
-          });
-        } else {
-          setHasOpenCashRegister(false);
-        }
-      } catch (err: any) {
-        const status = err?.response?.status;
-        if (status === 403) {
-          setError('Você não tem acesso a essa empresa.');
-        }
-        setHasOpenCashRegister(false);
-      } finally {
-        setCheckingStatus(false);
+  // Check if there's already an open cash register (only when this screen gains focus)
+  useFocusEffect(
+    useCallback(() => {
+      // If there are cart items and open cash register, go to sales
+      if (items.length > 0 && cashRegister?.id) {
+        navigation.navigate('Sales');
+        return;
       }
-    };
 
-    checkOpenCashRegister();
-  }, [selectedBranchId, navigation, items, cashRegister]);
+      checkOpenCashRegister();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedBranchId])
+  );
+
+  const checkOpenCashRegister = async () => {
+    try {
+      if (!selectedBranchId) {
+        navigation.navigate('BranchSelection');
+        return;
+      }
+
+      const response = await api.get(
+        `/cash-registers/branch/${selectedBranchId}/current`
+      );
+
+      const responseData = response.data;
+      const cashRegisterCandidate =
+        responseData?.cash_register ||
+        responseData?.data?.cash_register ||
+        responseData?.current_cash_register ||
+        responseData?.cashRegister ||
+        responseData?.data;
+
+      const existingCashRegister =
+        cashRegisterCandidate && !Array.isArray(cashRegisterCandidate)
+          ? cashRegisterCandidate
+          : null;
+
+      if (existingCashRegister?.id) {
+        setHasOpenCashRegister(true);
+        setCashRegister({
+          id: existingCashRegister.id,
+          branch_id: existingCashRegister.branch?.id ?? existingCashRegister.branch_id,
+          user_id: existingCashRegister.user?.id,
+          opening_balance: existingCashRegister.opening_balance || 0,
+          status: 'open',
+          opened_at: existingCashRegister.opened_at,
+        });
+      } else {
+        setHasOpenCashRegister(false);
+      }
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 403) {
+        setError('Você não tem acesso a essa empresa.');
+      }
+      setHasOpenCashRegister(false);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
   const handleOpenCashRegister = async () => {
     setError('');
@@ -110,12 +116,15 @@ export default function CashRegisterScreen({ navigation }: Props) {
         opening_balance: balance,
       });
 
-      if (response.data?.cash_register) {
+      const newCashRegister = response.data?.cash_register;
+      if (newCashRegister) {
         setCashRegister({
-          id: response.data.cash_register.id,
-          branch_id: selectedBranchId!,
+          id: newCashRegister.id,
+          branch_id: newCashRegister.branch?.id ?? selectedBranchId!,
+          user_id: newCashRegister.user?.id,
           opening_balance: balance,
           status: 'open',
+          opened_at: newCashRegister.opened_at,
         });
         navigation.navigate('Sales');
       }

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import api from '../api/api';
-
+console.log('LoginScreen carregada');
 interface Props {
   navigation: any;
 }
@@ -24,31 +24,44 @@ export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuthStore();
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Atenção', 'Preencha email e senha');
-      return;
+  console.log('BOTÃO LOGIN CLICADO');
+
+  if (!email || !password) {
+    console.log('EMAIL OU SENHA VAZIOS');
+    Alert.alert('Atenção', 'Preencha email e senha');
+    return;
+  }
+
+  console.log('TENTANDO LOGIN:', email);
+
+  setLoading(true);
+
+  try {
+    const response = await api.post('/auth/login', { email, password });
+
+    console.log('RESPOSTA API:', response.data);
+
+    const { user, token } = response.data.data || response.data;
+
+    if (token && user) {
+      console.log('LOGIN OK');
+      await login(token, user);
+      navigation.replace('BranchSelection');
+    } else {
+      console.log('RESPOSTA SEM TOKEN');
+      Alert.alert('Erro', 'Resposta inválida do servidor');
     }
+  } catch (error: any) {
+    console.log('ERRO LOGIN:', error);
+    
+    const message =
+      error.response?.data?.message || 'Erro ao fazer login. Tente novamente';
 
-    setLoading(true);
-
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      const { user, token } = response.data.data || response.data;
-
-      if (token && user) {
-        await login(token, user);
-        navigation.replace('BranchSelection');
-      } else {
-        Alert.alert('Erro', 'Resposta inválida do servidor');
-      }
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || 'Erro ao fazer login. Tente novamente.';
-      Alert.alert('Erro', message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    Alert.alert('Erro', message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <KeyboardAvoidingView

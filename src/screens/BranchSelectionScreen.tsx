@@ -30,6 +30,7 @@ export default function BranchSelectionScreen({ navigation }: Props) {
   const loadBranches = async () => {
     try {
       const response = await api.get('/branches');
+      console.log(response);
       const data = extractArrayData(response);
       setBranches(data);
     } catch (error: any) {

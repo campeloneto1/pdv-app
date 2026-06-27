@@ -20,7 +20,7 @@ import { StonePaymentResult } from '../../types';
 const { StoneModule } = NativeModules;
 
 // Verifica se está rodando em uma máquina POS
-const isStoneDevice = Platform.OS === 'android' && StoneModule !== undefined;
+const isStoneDevice = Platform.OS === 'android' && StoneModule != null;
 
 export const StonePayment = {
   /**
