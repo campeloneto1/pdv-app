@@ -17,6 +17,9 @@ node_modules/
 android/app/build/
 android/.gradle/
 android/build/
+android/app/.cxx/
+android/local.properties
+android/app/debug.keystore
 *.apk
 *.aab
 
