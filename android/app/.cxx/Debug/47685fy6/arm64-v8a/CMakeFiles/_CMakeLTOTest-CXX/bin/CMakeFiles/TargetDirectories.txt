@@ -1,0 +1,4 @@
+/home/campelo/campelo/pdv-app/android/app/.cxx/Debug/47685fy6/arm64-v8a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir
+/home/campelo/campelo/pdv-app/android/app/.cxx/Debug/47685fy6/arm64-v8a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/boo.dir
+/home/campelo/campelo/pdv-app/android/app/.cxx/Debug/47685fy6/arm64-v8a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/edit_cache.dir
+/home/campelo/campelo/pdv-app/android/app/.cxx/Debug/47685fy6/arm64-v8a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/rebuild_cache.dir

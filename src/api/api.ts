@@ -1,8 +1,9 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Config from 'react-native-config';
 
 // Configuração base da API
-const API_BASE_URL = 'https://api.cariripdv.com.br/api';
+const API_BASE_URL = Config.API_BASE_URL || 'https://api.cariripdv.com.br/api';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
