@@ -1,6 +1,6 @@
-# 📱 Cariri PDV POS - App para Máquinas Stone/TON
+# 📱 Cariri PDV POS - App para Máquinas PagBank
 
-App React Native para vendas em máquinas POS Stone (TON T2, T3, T3 Smart).
+App React Native para vendas em máquinas POS PagBank (Moderninha Plus, Moderninha Smart).
 
 ## 🚀 Setup Inicial
 
@@ -60,7 +60,7 @@ pdv-app/
 │   │   └── sessionStore.ts    # Sessão/Caixa/Filial
 │   ├── services/
 │   │   ├── payment/
-│   │   │   └── stone.ts       # SDK Stone
+│   │   │   └── pagbank.ts     # SDK PagBank (PlugPag)
 │   │   └── printer/
 │   │       └── thermalPrinter.ts
 │   └── types/
@@ -72,51 +72,32 @@ pdv-app/
 
 ---
 
-## 🔧 Integração Stone SDK
+## 🔧 Integração PagBank (PlugPag SDK)
 
 ### 1. Adicionar SDK no Gradle
 
-Edite `android/app/build.gradle`:
+Edite `android/app/build.gradle` (versão e repositório a confirmar com o
+parceiro PagBank no momento da integração real):
 
 ```gradle
 dependencies {
-    // Stone SDK
-    implementation 'com.stone.posandroid:pos-android-sdk:3.5.0'
+    // PlugPag SDK
+    implementation 'com.uol.pagseguro.plugpagservice.wrapper:plugpag-wrapper:x.x.x'
 }
 ```
 
-### 2. Adicionar repositório Stone
+### 2. Adicionar repositório PagBank
 
-Edite `android/build.gradle`:
+Edite `android/build.gradle` com o Maven informado pelo programa de
+parceiros PagBank.
 
-```gradle
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://packagecloud.io/nicfrezza/pagseguro/maven2' }
-        maven { url 'https://pkgs.dev.azure.com/nicfrezza/stone/_packaging/stone/maven/v1' }
-    }
-}
-```
+### 3. Implementar o Módulo Nativo
 
-### 3. Criar Módulo Nativo
-
-Crie `android/app/src/main/java/com/cariripvdpos/StoneModule.java`:
-
-```java
-package com.cariripvdpos;
-
-import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
-import com.facebook.react.bridge.ReactMethod;
-import com.facebook.react.bridge.Promise;
-
-// Implementação do SDK Stone
-public class StoneModule extends ReactContextBaseJavaModule {
-    // Ver documentação Stone SDK
-}
-```
+O esqueleto já está pronto em
+`android/app/src/main/java/br/com/cariripdv/posapp/pdv/pagbank/PlugPagModule.kt` —
+falta apenas chamar a API real do SDK (`PlugPag`, `PlugPagPaymentData`,
+`PlugPagActivationData`) dentro de cada método, usando as credenciais de
+parceiro fornecidas pela PagBank.
 
 ---
 
@@ -134,12 +115,12 @@ public class StoneModule extends ReactContextBaseJavaModule {
 - [x] Histórico de vendas
 - [x] Reimpressão de comprovantes
 - [x] Menu lateral com opções
-- [x] Integração Stone (estrutura)
+- [x] Integração PagBank/PlugPag (estrutura)
 - [x] Impressão térmica (estrutura)
 
 ### 📋 Pendentes
 
-- [ ] Implementar módulo nativo Stone (Java/Kotlin)
+- [ ] Implementar módulo nativo PlugPag (Kotlin)
 - [ ] Implementar módulo nativo de impressão
 - [ ] Modo offline (SQLite)
 - [ ] Sincronização offline
@@ -148,15 +129,15 @@ public class StoneModule extends ReactContextBaseJavaModule {
 
 ---
 
-## 🔐 Certificação Stone
+## 🔐 Cadastro/Certificação PagBank
 
-Para publicar na Stone Store:
+Para publicar como parceiro PagBank:
 
-1. **Cadastro no Portal Stone**
-   - https://developers.stone.com.br/
+1. **Cadastro como desenvolvedor/parceiro PagBank**
+   - https://dev.pagbank.uol.com.br/
 
-2. **Solicitar SDK**
-   - Preencher formulário de desenvolvedor
+2. **Solicitar SDK PlugPag**
+   - Preencher formulário de parceiro
    - Receber credenciais sandbox
 
 3. **Testes**
@@ -166,7 +147,7 @@ Para publicar na Stone Store:
 4. **Certificação**
    - Submeter app para análise
    - Passar nos testes de segurança
-   - Publicar na Stone Store
+   - Publicar como app homologado PagBank
 
 ---
 
@@ -174,8 +155,7 @@ Para publicar na Stone Store:
 
 A impressora térmica está integrada na máquina. Suporte:
 
-- **Stone TON**: SDK nativo
-- **Moderninha Smart**: PlugPag SDK
+- **Moderninha Plus / Smart**: PlugPag SDK
 
 O cupom é formatado para 32 caracteres (padrão POS).
 
@@ -196,8 +176,7 @@ cd android
 
 ## 🔗 Links Úteis
 
-- [Stone SDK Docs](https://sdkandroid.stone.com.br/)
-- [Stone Portal Desenvolvedores](https://developers.stone.com.br/)
+- [PagBank Portal Desenvolvedores](https://dev.pagbank.uol.com.br/)
 - [React Native Docs](https://reactnative.dev/)
 
 ---

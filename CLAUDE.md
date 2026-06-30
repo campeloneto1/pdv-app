@@ -1,7 +1,7 @@
-# Cariri PDV POS - App React Native para Maquininhas Stone/TON
+# Cariri PDV POS - App React Native para Maquininhas PagBank
 
-> **Contexto**: App mobile para vendas em maquininhas POS (Stone TON T2, T3, Moderninha Plus, etc.)
-> **Tecnologia**: React Native com integração Stone SDK
+> **Contexto**: App mobile para vendas em maquininhas POS (Moderninha Plus, Moderninha Smart, etc.)
+> **Tecnologia**: React Native com integração PagBank (PlugPag SDK)
 
 ---
 
@@ -24,7 +24,7 @@
   "navigation": "React Navigation 6",
   "state": "Zustand 4.4 (com persist + AsyncStorage)",
   "http": "Axios",
-  "payment": "Stone SDK (nativo)",
+  "payment": "PagBank PlugPag SDK (nativo)",
   "printer": "Impressora térmica integrada"
 }
 ```
@@ -37,7 +37,7 @@
 pdv-app/
 ├── android/                    # Código nativo Android
 │   └── app/
-│       └── src/main/java/      # Módulos nativos (Stone, Printer)
+│       └── src/main/java/      # Módulos nativos (PlugPag, Printer)
 ├── src/
 │   ├── api/
 │   │   └── api.ts             # Cliente HTTP (Axios) com interceptors
@@ -58,7 +58,7 @@ pdv-app/
 │   │
 │   ├── services/
 │   │   ├── payment/
-│   │   │   └── stone.ts       # Integração Stone SDK
+│   │   │   └── pagbank.ts     # Integração PagBank (PlugPag SDK)
 │   │   └── printer/
 │   │       └── thermalPrinter.ts  # Impressão de cupons
 │   │
@@ -196,7 +196,7 @@ Login → BranchSelection → CashRegister → Sales → Cart → Payment
   - Débito
   - PIX
   - Dinheiro
-- Ação: Processa pagamento via Stone SDK
+- Ação: Processa pagamento via PagBank (PlugPag SDK)
 - Ação: POST `/sales` (registra venda no backend)
 - Ação: Imprime cupom via ThermalPrinter
 - Navegação: → Sales (após sucesso)
@@ -271,9 +271,9 @@ export function extractSingleData(response: any): any {
 
 ---
 
-## Integração Stone SDK
+## Integração PagBank (PlugPag SDK)
 
-### Arquivo: `src/services/payment/stone.ts`
+### Arquivo: `src/services/payment/pagbank.ts`
 
 ```typescript
 interface PaymentResult {
@@ -283,7 +283,7 @@ interface PaymentResult {
   authorizationCode?: string;
 }
 
-class StonePaymentService {
+class PagBankPaymentService {
   async initialize(): Promise<void>;
   async payCredit(amountCents: number, installments: number): Promise<PaymentResult>;
   async payDebit(amountCents: number): Promise<PaymentResult>;
@@ -294,16 +294,18 @@ class StonePaymentService {
 
 **IMPORTANTE**: Atualmente em modo simulação. Para produção:
 
-1. Criar módulo nativo Java/Kotlin em `android/app/src/main/java/`
-2. Adicionar Stone SDK no `android/app/build.gradle`
-3. Implementar bridge React Native ↔ Java
+1. Criar módulo nativo Kotlin em `android/app/src/main/java/` (esqueleto já
+   existe em `pagbank/PlugPagModule.kt`)
+2. Adicionar PlugPag SDK no `android/app/build.gradle`
+3. Implementar bridge React Native ↔ Kotlin com credenciais de parceiro PagBank
 
 ### Gradle Dependencies (a adicionar)
 
 ```gradle
 // android/app/build.gradle
 dependencies {
-    implementation 'com.stone.posandroid:pos-android-sdk:3.5.0'
+    // Versão/repositório a confirmar com o parceiro PagBank
+    implementation 'com.uol.pagseguro.plugpagservice.wrapper:plugpag-wrapper:x.x.x'
 }
 ```
 
@@ -335,8 +337,7 @@ class ThermalPrinterService {
 
 **IMPORTANTE**: Atualmente em modo simulação. Para produção:
 1. Criar módulo nativo para impressora da máquina
-2. Stone TON usa SDK próprio para impressão
-3. Moderninha usa PlugPag SDK
+2. Moderninha usa o SDK PlugPag para impressão
 
 ---
 
@@ -543,7 +544,7 @@ cd android && ./gradlew assembleRelease
 
 ### Pendentes
 
-- [ ] Módulo nativo Stone SDK (Java/Kotlin)
+- [ ] Módulo nativo PagBank PlugPag SDK (Kotlin)
 - [ ] Módulo nativo impressora térmica
 - [ ] Modo offline (SQLite)
 - [ ] Sincronização de vendas offline
@@ -597,12 +598,12 @@ if (!_hydrated) {
 
 ---
 
-## Certificação Stone
+## Cadastro/Certificação PagBank
 
-Para publicar na Stone Store:
+Para publicar como parceiro PagBank:
 
-1. Cadastro em https://developers.stone.com.br/
-2. Solicitar SDK e credenciais sandbox
+1. Cadastro em https://dev.pagbank.uol.com.br/
+2. Solicitar SDK PlugPag e credenciais sandbox
 3. Implementar módulos nativos
 4. Testar em máquina de homologação
 5. Submeter para certificação
@@ -627,5 +628,5 @@ Não inclui funcionalidades administrativas (gestão de produtos, usuários, rel
 
 ---
 
-**Última atualização**: 2026-06-27
+**Última atualização**: 2026-06-30
 **Versão**: 1.0.0

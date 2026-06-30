@@ -117,7 +117,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
       const flags = response.data?.feature_flags || {};
       setFeatureFlags(flags);
       return flags;
-    } catch (err) {
+    } catch {
       return {};
     }
   };
@@ -141,7 +141,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
         });
       }
       navigation.navigate('Sales');
-    } catch (err: any) {
+    } catch {
       // Se a abertura automática falhar, cai no fluxo manual normalmente
       setHasOpenCashRegister(false);
       setCheckingStatus(false);
@@ -225,7 +225,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
       );
       setTotalSales(total);
       setShowCloseModal(true);
-    } catch (err: any) {
+    } catch {
       Alert.alert('Erro', 'Erro ao carregar informações de vendas');
     }
   };
@@ -279,7 +279,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
         </TouchableOpacity>
         <Text style={styles.branchName}>{selectedBranchName}</Text>
         <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
-          <Text style={[styles.headerButtonText, { color: '#ef4444' }]}>Sair</Text>
+          <Text style={[styles.headerButtonText, styles.headerButtonTextDanger]}>Sair</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.divider} />
@@ -382,7 +382,7 @@ export default function CashRegisterScreen({ navigation }: Props) {
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total de Vendas</Text>
-                <Text style={[styles.summaryValue, { color: '#22c55e' }]}>
+                <Text style={[styles.summaryValue, styles.summaryValueSuccess]}>
                   R$ {totalSales.toFixed(2).replace('.', ',')}
                 </Text>
               </View>
@@ -486,6 +486,9 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 16,
     fontWeight: '600',
+  },
+  headerButtonTextDanger: {
+    color: '#ef4444',
   },
   branchName: {
     color: '#111827',
@@ -670,6 +673,9 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 16,
     fontWeight: '600',
+  },
+  summaryValueSuccess: {
+    color: '#22c55e',
   },
   summaryTotal: {
     borderTopWidth: 1,

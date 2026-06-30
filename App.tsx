@@ -19,7 +19,7 @@ import { useAuthStore } from './src/store/authStore';
 import { useSessionStore } from './src/store/sessionStore';
 
 // Services
-import { StonePayment } from './src/services/payment/stone';
+import { PagBankPayment } from './src/services/payment/pagbank';
 import { syncPendingSales } from './src/services/offline/offlineQueue';
 
 const Stack = createNativeStackNavigator();
@@ -32,7 +32,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const initApp = async () => {
       // Inicializar SDK de pagamento
-      await StonePayment.initialize();
+      await PagBankPayment.initialize();
 
       // Aguardar hidratação do store
       if (_hydrated) {

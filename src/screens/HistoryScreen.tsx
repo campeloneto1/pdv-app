@@ -63,6 +63,7 @@ export default function HistoryScreen({ navigation }: Props) {
 
   useEffect(() => {
     fetchSales();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cashRegister?.id]);
 
   const fetchSales = async () => {
@@ -220,7 +221,7 @@ export default function HistoryScreen({ navigation }: Props) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Histórico</Text>
         <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
-          <Text style={[styles.headerButtonText, { color: '#ef4444' }]}>Sair</Text>
+          <Text style={[styles.headerButtonText, styles.headerButtonTextDanger]}>Sair</Text>
         </TouchableOpacity>
       </View>
 
@@ -250,7 +251,7 @@ export default function HistoryScreen({ navigation }: Props) {
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Valor Total</Text>
-              <Text style={[styles.summaryValue, { color: '#22c55e' }]}>
+              <Text style={[styles.summaryValue, styles.summaryValueSuccess]}>
                 {formatCurrency(totalSales)}
               </Text>
             </View>
@@ -304,6 +305,9 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 16,
     fontWeight: '600',
+  },
+  headerButtonTextDanger: {
+    color: '#ef4444',
   },
   headerTitle: {
     fontSize: 18,
@@ -373,6 +377,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#2563eb',
+  },
+  summaryValueSuccess: {
+    color: '#22c55e',
   },
   summaryDivider: {
     width: 1,

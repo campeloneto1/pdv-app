@@ -1,7 +1,7 @@
 {
   "name": "cariri-pdv-pos",
   "version": "1.0.0",
-  "description": "App de vendas para máquinas POS Stone/TON",
+  "description": "App de vendas para máquinas POS PagBank (PlugPag)",
   "main": "index.js",
   "scripts": {
     "android": "react-native run-android",

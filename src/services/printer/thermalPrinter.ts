@@ -2,7 +2,7 @@
  * Thermal Printer Service for POS Machines
  *
  * Este módulo integra com a impressora térmica da máquina POS.
- * Funciona com Stone TON e outras máquinas Android.
+ * Funciona com Moderninha (PagBank) e outras máquinas Android.
  */
 
 import { NativeModules, Platform } from 'react-native';

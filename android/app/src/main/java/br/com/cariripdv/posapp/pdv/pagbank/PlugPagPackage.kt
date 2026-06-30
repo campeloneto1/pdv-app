@@ -1,13 +1,13 @@
-package br.com.cariripdv.posapp.pdv.stone
+package br.com.cariripdv.posapp.pdv.pagbank
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
-class StonePackage : ReactPackage {
+class PlugPagPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    return listOf(StoneModule(reactContext))
+    return listOf(PlugPagModule(reactContext))
   }
 
   override fun createViewManagers(

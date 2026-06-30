@@ -115,8 +115,8 @@ export interface CashRegister {
   closed_at?: string;
 }
 
-// Stone SDK Types
-export interface StonePaymentResult {
+// Payment SDK Types (PagBank PlugPag)
+export interface PaymentResult {
   success: boolean;
   transactionId?: string;
   authorizationCode?: string;

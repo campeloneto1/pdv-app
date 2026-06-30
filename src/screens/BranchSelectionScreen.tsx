@@ -33,7 +33,7 @@ export default function BranchSelectionScreen({ navigation }: Props) {
       console.log(response);
       const data = extractArrayData(response);
       setBranches(data);
-    } catch (error: any) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível carregar as filiais');
     } finally {
       setLoading(false);

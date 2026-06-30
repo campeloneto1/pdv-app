@@ -7,7 +7,7 @@ import { Buffer } from 'buffer';
  * mesmo protocolo "JetDirect" que qualquer impressora de rede aceita.
  *
  * Diferente do ThermalPrinter (impressora interna da maquininha via SDK
- * Stone), este serviço fala direto com uma impressora de rede separada
+ * PlugPag), este serviço fala direto com uma impressora de rede separada
  * (ex: a impressora da produção/cozinha), usando o IP:porta cadastrado em
  * /branches/{id}/printers.
  */

@@ -17,13 +17,13 @@ class MainApplication : Application(), ReactApplication {
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
 
-          // Stone SDK e impressora térmica: esqueletos prontos em
-          // stone/StoneModule.kt e printer/PrinterModule.kt. Descomente as
+          // PlugPag (PagBank) e impressora térmica: esqueletos prontos em
+          // pagbank/PlugPagModule.kt e printer/PrinterModule.kt. Descomente as
           // duas linhas abaixo SOMENTE depois de implementar os métodos com
           // o SDK real do fabricante - enquanto os métodos só fazem
           // promise.reject(), registrar o módulo quebra o modo simulado
-          // hoje usado em src/services/payment/stone.ts e thermalPrinter.ts.
-          // add(br.com.cariripdv.posapp.pdv.stone.StonePackage())
+          // hoje usado em src/services/payment/pagbank.ts e thermalPrinter.ts.
+          // add(br.com.cariripdv.posapp.pdv.pagbank.PlugPagPackage())
           // add(br.com.cariripdv.posapp.pdv.printer.PrinterPackage())
         },
     )

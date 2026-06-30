@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useCartStore } from '../store/cartStore';
 import { useSessionStore } from '../store/sessionStore';
-import { StonePayment } from '../services/payment/stone';
+import { PagBankPayment } from '../services/payment/pagbank';
 import { ThermalPrinter } from '../services/printer/thermalPrinter';
 import { printProductionCopy } from '../services/printer/networkPrintService';
 import api, { extractArrayData } from '../api/api';
@@ -73,7 +73,7 @@ export default function PaymentScreen({ navigation }: Props) {
       const response = await api.get('/payment-methods');
       const data = extractArrayData(response).filter((m: PaymentMethod) => m.active);
       setMethods(data);
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível carregar as formas de pagamento');
     } finally {
       setLoadingMethods(false);
@@ -208,13 +208,13 @@ export default function PaymentScreen({ navigation }: Props) {
 
         switch (entry.kind) {
           case 'credit':
-            result = await StonePayment.payCredit(amountInCents, entry.installments);
+            result = await PagBankPayment.payCredit(amountInCents, entry.installments);
             break;
           case 'debit':
-            result = await StonePayment.payDebit(amountInCents);
+            result = await PagBankPayment.payDebit(amountInCents);
             break;
           case 'pix':
-            result = await StonePayment.payPix(amountInCents);
+            result = await PagBankPayment.payPix(amountInCents);
             break;
           case 'cash':
             result = { success: true, transactionId: `CASH_${Date.now()}` };
@@ -224,7 +224,7 @@ export default function PaymentScreen({ navigation }: Props) {
         if (!result?.success) {
           // Desfaz pagamentos com cartão já aprovados antes de abortar
           for (const done of succeeded) {
-            await StonePayment.cancel(done.transactionId);
+            await PagBankPayment.cancel(done.transactionId);
           }
           Alert.alert(
             'Erro',
@@ -276,7 +276,7 @@ export default function PaymentScreen({ navigation }: Props) {
       const orderNumber = sale?.order_number ?? sale?.sale_number ?? 'PENDENTE';
       const createdAt = sale?.created_at || new Date().toISOString();
 
-      // Via do CLIENTE: impressora interna da maquininha (SDK Stone)
+      // Via do CLIENTE: impressora interna da maquininha (SDK PlugPag)
       try {
         await ThermalPrinter.printReceipt({
           order_number: orderNumber,
@@ -387,7 +387,7 @@ export default function PaymentScreen({ navigation }: Props) {
         {/* Quick methods */}
         <Text style={styles.sectionTitle}>Adicionar Forma de Pagamento</Text>
         {loadingMethods ? (
-          <ActivityIndicator color="#2563eb" style={{ marginBottom: 16 }} />
+          <ActivityIndicator color="#2563eb" style={styles.methodsLoading} />
         ) : (
           <View style={styles.methodsGrid}>
             {QUICK_METHODS.map((method) => {
@@ -568,6 +568,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#374151',
     marginBottom: 12,
+  },
+  methodsLoading: {
+    marginBottom: 16,
   },
   customerNameContainer: {
     marginBottom: 16,

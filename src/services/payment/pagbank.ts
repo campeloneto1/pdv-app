@@ -1,51 +1,51 @@
 /**
- * Stone SDK Integration for React Native
+ * PagBank (PlugPag SDK) Integration for React Native
  *
- * Este módulo integra com o SDK nativo da Stone para:
+ * Este módulo integra com o SDK nativo da PagBank (PlugPag) para:
  * - Pagamento por crédito
  * - Pagamento por débito
  * - Pagamento por PIX
  * - Cancelamento de transações
  *
  * IMPORTANTE: Para funcionar, você precisa:
- * 1. Adicionar o SDK Stone no android/app/build.gradle
- * 2. Criar o módulo nativo em android/app/src/main/java/.../StoneModule.java
- * 3. Registrar o módulo no MainApplication.java
+ * 1. Adicionar o SDK PlugPag no android/app/build.gradle
+ * 2. Criar o módulo nativo em android/app/src/main/java/.../PlugPagModule.kt
+ * 3. Registrar o módulo no MainApplication.kt
  */
 
 import { NativeModules, Platform } from 'react-native';
-import { StonePaymentResult } from '../../types';
+import { PaymentResult } from '../../types';
 
 // O módulo nativo será criado depois
-const { StoneModule } = NativeModules;
+const { PlugPagModule } = NativeModules;
 
 // Verifica se está rodando em uma máquina POS
-const isStoneDevice = Platform.OS === 'android' && StoneModule != null;
+const isPagBankDevice = Platform.OS === 'android' && PlugPagModule != null;
 
-export const StonePayment = {
+export const PagBankPayment = {
   /**
-   * Verifica se o SDK Stone está disponível
+   * Verifica se o SDK PlugPag está disponível
    */
   isAvailable(): boolean {
-    return isStoneDevice;
+    return isPagBankDevice;
   },
 
   /**
-   * Inicializa o SDK Stone
+   * Inicializa o SDK PlugPag
    * Deve ser chamado no início do app
    */
   async initialize(): Promise<boolean> {
-    if (!isStoneDevice) {
-      console.log('⚠️ Stone SDK não disponível (não é máquina POS)');
+    if (!isPagBankDevice) {
+      console.log('⚠️ PlugPag SDK não disponível (não é máquina POS)');
       return false;
     }
 
     try {
-      const result = await StoneModule.initialize();
-      console.log('✅ Stone SDK inicializado');
+      const result = await PlugPagModule.initialize();
+      console.log('✅ PlugPag SDK inicializado');
       return result;
     } catch (error) {
-      console.error('❌ Erro ao inicializar Stone SDK:', error);
+      console.error('❌ Erro ao inicializar PlugPag SDK:', error);
       return false;
     }
   },
@@ -58,14 +58,14 @@ export const StonePayment = {
   async payCredit(
     amountInCents: number,
     installments: number = 1
-  ): Promise<StonePaymentResult> {
-    if (!isStoneDevice) {
+  ): Promise<PaymentResult> {
+    if (!isPagBankDevice) {
       // Simular em desenvolvimento
       return simulatePayment('credit', amountInCents);
     }
 
     try {
-      const result = await StoneModule.doPaymentCredit(amountInCents, installments);
+      const result = await PlugPagModule.doPaymentCredit(amountInCents, installments);
       return {
         success: true,
         transactionId: result.transactionId,
@@ -86,13 +86,13 @@ export const StonePayment = {
    * Pagamento com cartão de débito
    * @param amountInCents - Valor em centavos
    */
-  async payDebit(amountInCents: number): Promise<StonePaymentResult> {
-    if (!isStoneDevice) {
+  async payDebit(amountInCents: number): Promise<PaymentResult> {
+    if (!isPagBankDevice) {
       return simulatePayment('debit', amountInCents);
     }
 
     try {
-      const result = await StoneModule.doPaymentDebit(amountInCents);
+      const result = await PlugPagModule.doPaymentDebit(amountInCents);
       return {
         success: true,
         transactionId: result.transactionId,
@@ -113,13 +113,13 @@ export const StonePayment = {
    * Pagamento via PIX
    * @param amountInCents - Valor em centavos
    */
-  async payPix(amountInCents: number): Promise<StonePaymentResult> {
-    if (!isStoneDevice) {
+  async payPix(amountInCents: number): Promise<PaymentResult> {
+    if (!isPagBankDevice) {
       return simulatePayment('pix', amountInCents);
     }
 
     try {
-      const result = await StoneModule.doPaymentPix(amountInCents);
+      const result = await PlugPagModule.doPaymentPix(amountInCents);
       return {
         success: true,
         transactionId: result.transactionId,
@@ -137,14 +137,14 @@ export const StonePayment = {
    * Cancelar transação
    * @param transactionId - ID da transação a cancelar
    */
-  async cancel(transactionId: string): Promise<StonePaymentResult> {
-    if (!isStoneDevice) {
+  async cancel(transactionId: string): Promise<PaymentResult> {
+    if (!isPagBankDevice) {
       console.log('Cancelamento simulado:', transactionId);
       return { success: true };
     }
 
     try {
-      await StoneModule.cancelTransaction(transactionId);
+      await PlugPagModule.cancelTransaction(transactionId);
       return { success: true };
     } catch (error: any) {
       return {
@@ -158,13 +158,13 @@ export const StonePayment = {
    * Reimprimir último comprovante
    */
   async reprintLastReceipt(): Promise<boolean> {
-    if (!isStoneDevice) {
+    if (!isPagBankDevice) {
       console.log('Reimpressão simulada');
       return true;
     }
 
     try {
-      await StoneModule.reprintLastReceipt();
+      await PlugPagModule.reprintLastReceipt();
       return true;
     } catch (error) {
       console.error('Erro ao reimprimir:', error);
@@ -180,7 +180,7 @@ export const StonePayment = {
 function simulatePayment(
   type: string,
   amountInCents: number
-): Promise<StonePaymentResult> {
+): Promise<PaymentResult> {
   return new Promise((resolve) => {
     console.log(`💳 Simulando pagamento ${type}: R$ ${(amountInCents / 100).toFixed(2)}`);
 
@@ -198,4 +198,4 @@ function simulatePayment(
   });
 }
 
-export default StonePayment;
+export default PagBankPayment;

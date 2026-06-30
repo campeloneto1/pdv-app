@@ -59,6 +59,7 @@ export default function SalesScreen({ navigation }: Props) {
       return;
     }
     loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useFocusEffect(
@@ -90,6 +91,7 @@ export default function SalesScreen({ navigation }: Props) {
     if (selectedCategoryId) {
       loadProducts(selectedCategoryId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategoryId]);
 
   const loadCategories = async () => {
@@ -400,7 +402,7 @@ export default function SalesScreen({ navigation }: Props) {
 
             <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
               <Text style={styles.menuItemIcon}>🚪</Text>
-              <Text style={[styles.menuItemText, { color: '#ef4444' }]}>Sair</Text>
+              <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Sair</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -687,6 +689,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
+  },
+  menuItemTextDanger: {
+    color: '#ef4444',
   },
   menuDivider: {
     height: 8,
