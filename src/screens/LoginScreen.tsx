@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import api from '../api/api';
@@ -71,9 +72,11 @@ export default function LoginScreen({ navigation }: Props) {
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>💳</Text>
-          </View>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Cariri PDV</Text>
           <Text style={styles.subtitle}>Sistema de Vendas</Text>
         </View>
@@ -156,22 +159,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoImage: {
+    width: 96,
+    height: 96,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logoEmoji: {
-    fontSize: 36,
   },
   title: {
     fontSize: 32,
